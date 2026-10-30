@@ -1,0 +1,16 @@
+{
+  "operation": "request",
+  "body": {
+    "model": "client-model",
+    "max_tokens": 2048,
+    "thinking": {"type": "enabled", "budget_tokens": 1024},
+    "messages": [
+      {"role": "user", "content": "Summarize the incident."},
+      {"role": "assistant", "content": [
+        {"type": "redacted_thinking", "data": "encrypted-reasoning"},
+        {"type": "text", "text": "Here is the summary."}
+      ]},
+      {"role": "user", "content": "Add the timeline."}
+    ]
+  }
+}
