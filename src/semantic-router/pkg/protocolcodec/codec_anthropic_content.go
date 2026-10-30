@@ -79,18 +79,20 @@ func decodeAnthropicContentBlock(
 
 func validateAnthropicContentVariant(body json.RawMessage, typeName string, providerOutput bool) error {
 	allowedByType := map[string][]string{
-		"text":        {"cache_control", "citations", "text", "type"},
-		"thinking":    {"signature", "thinking", "type"},
-		"image":       {"cache_control", "source", "transformations", "type"},
-		"document":    {"cache_control", "citations", "context", "source", "title", "type"},
-		"tool_use":    {"cache_control", "caller", "id", "input", "name", "toolset_name", "type"},
-		"tool_result": {"cache_control", "content", "is_error", "tool_use_id", "toolset_name", "type"},
+		"text":              {"cache_control", "citations", "text", "type"},
+		"thinking":          {"signature", "thinking", "type"},
+		"redacted_thinking": {"data", "type"},
+		"image":             {"cache_control", "source", "transformations", "type"},
+		"document":          {"cache_control", "citations", "context", "source", "title", "type"},
+		"tool_use":          {"cache_control", "caller", "id", "input", "name", "toolset_name", "type"},
+		"tool_result":       {"cache_control", "content", "is_error", "tool_use_id", "toolset_name", "type"},
 	}
 	if providerOutput {
 		allowedByType = map[string][]string{
-			"text":     {"citations", "text", "type"},
-			"thinking": {"signature", "thinking", "type"},
-			"tool_use": {"caller", "id", "input", "name", "toolset_name", "type"},
+			"text":              {"citations", "text", "type"},
+			"thinking":          {"signature", "thinking", "type"},
+			"redacted_thinking": {"data", "type"},
+			"tool_use":          {"caller", "id", "input", "name", "toolset_name", "type"},
 		}
 	}
 	allowed, recognized := allowedByType[typeName]
@@ -109,11 +111,12 @@ func validateAnthropicContentVariant(body json.RawMessage, typeName string, prov
 
 func requireAnthropicContentFields(object map[string]json.RawMessage, typeName string, providerOutput bool) error {
 	requiredByType := map[string][]string{
-		"text":     {"text"},
-		"thinking": {"thinking"},
-		"image":    {"source"},
-		"document": {"source"},
-		"tool_use": {"id", "input", "name"},
+		"text":              {"text"},
+		"thinking":          {"thinking"},
+		"redacted_thinking": {"data"},
+		"image":             {"source"},
+		"document":          {"source"},
+		"tool_use":          {"id", "input", "name"},
 		// content is optional for tool_result, matching the official SDK
 		// contract: only type and tool_use_id are required. Omitted content
 		// decodes to an empty tool result.
@@ -186,10 +189,8 @@ func anthropicRequestContentType(body json.RawMessage) (string, error) {
 		return "", err
 	}
 	switch typeName {
-	case "text", "thinking", "image", "document", "tool_use", "tool_result":
+	case "text", "thinking", "redacted_thinking", "image", "document", "tool_use", "tool_result":
 		return typeName, nil
-	case "redacted_thinking":
-		return "", llmprotocol.NewError(llmprotocol.ErrorUnsupportedFeature, "redacted_reasoning", "redacted reasoning cannot be translated", nil)
 	default:
 		return "", llmprotocol.NewError(llmprotocol.ErrorUnsupportedFeature, "unsupported_content", "Anthropic content type is unsupported", nil)
 	}
@@ -201,10 +202,8 @@ func anthropicResponseContentType(body json.RawMessage) (string, error) {
 		return "", err
 	}
 	switch typeName {
-	case "text", "thinking", "tool_use":
+	case "text", "thinking", "redacted_thinking", "tool_use":
 		return typeName, nil
-	case "redacted_thinking":
-		return "", llmprotocol.NewError(llmprotocol.ErrorUnsupportedFeature, "redacted_reasoning", "redacted reasoning cannot be translated", nil)
 	default:
 		return "", llmprotocol.NewError(llmprotocol.ErrorUnsupportedFeature, "unsupported_content", "Anthropic response content type is unsupported", nil)
 	}
@@ -281,6 +280,8 @@ func decodeAnthropicTypedContent(
 			Kind: llmprotocol.ContentReasoning, Text: block.Thinking, Signature: block.Signature,
 			Reasoning: llmprotocol.ReasoningScopeText,
 		}, nil
+	case "redacted_thinking":
+		return decodeAnthropicRedactedThinking(block.Data)
 	case "image", "document":
 		content, err := decodeAnthropicMediaContent(typeName, block.Source)
 		content.Cache = decodeAnthropicCacheControl(block.CacheControl)
@@ -755,6 +756,9 @@ func encodeAnthropicContentBlock(content llmprotocol.Content) (anthropicContentW
 		if content.Cache != nil {
 			return anthropicContentWire{}, llmprotocol.NewError(llmprotocol.ErrorUnsupportedFeature, "unsupported_cache_directive", "Anthropic Messages cannot attach cache_control to thinking content", nil)
 		}
+		if content.Reasoning == llmprotocol.ReasoningScopeRedacted {
+			return anthropicContentWire{Type: "redacted_thinking", Data: content.Signature}, nil
+		}
 		return anthropicContentWire{Type: "thinking", Thinking: content.Text, Signature: content.Signature, CacheControl: encodeAnthropicCacheControl(content.Cache)}, nil
 	case llmprotocol.ContentImage, llmprotocol.ContentFile:
 		if content.Kind == llmprotocol.ContentFile && content.Detail != "" {
@@ -842,4 +846,16 @@ func anthropicContentDiagnostics(contents []llmprotocol.Content, source llmproto
 		}
 	}
 	return diagnostics, nil
+}
+
+// decodeAnthropicRedactedThinking keeps the encrypted payload intact so a
+// Messages target can replay it; other targets reject it as signed reasoning.
+func decodeAnthropicRedactedThinking(data string) (llmprotocol.Content, error) {
+	if data == "" {
+		return llmprotocol.Content{}, llmprotocol.NewError(llmprotocol.ErrorInvalidRequest, "invalid_content_variant", "Anthropic redacted_thinking requires data", nil)
+	}
+	return llmprotocol.Content{
+		Kind: llmprotocol.ContentReasoning, Signature: data,
+		Reasoning: llmprotocol.ReasoningScopeRedacted,
+	}, nil
 }

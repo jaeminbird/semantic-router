@@ -828,7 +828,13 @@ func (encoder *chatStreamEncoder) applyChunkEvent(
 	case llmprotocol.EventResponseStarted:
 		encoder.startChatItem(choice)
 	case llmprotocol.EventOutputItemStarted:
-		return nil, encoder.startChatItem(choice), nil
+		// Redacted reasoning arrives whole on the item start and never as a
+		// delta, so its opaque payload must be checked here.
+		diagnostics, err := encoder.reasoningDiagnostics(event)
+		if err != nil {
+			return diagnostics, false, err
+		}
+		return diagnostics, encoder.startChatItem(choice), nil
 	case llmprotocol.EventOutputTextDelta:
 		applyChatTextDelta(event, choice)
 	case llmprotocol.EventReasoningDelta:

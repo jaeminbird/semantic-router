@@ -157,7 +157,9 @@ A Chat Completions or Responses client then receives a typed
 failure arrives mid-stream, after the response headers and any earlier deltas,
 because the signature reaches the encoder only with the reasoning delta.
 Same-format traffic, including Messages clients reading an Anthropic backend, is
-unaffected.
+unaffected. Anthropic `redacted_thinking` blocks follow the same rule: a Messages
+backend receives them unchanged, while Chat Completions and Responses targets
+reject them with the same typed failure as signed thinking.
 
 A Responses client can still use `previous_response_id` with a Chat
 Completions or Messages backend. The Router retrieves and materializes the

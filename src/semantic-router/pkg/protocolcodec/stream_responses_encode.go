@@ -50,8 +50,15 @@ func (encoder *responsesStreamEncoder) encodeDirectResponsesNonFailureEvent(
 		frames, err := encoder.encodeResponsesStart(event)
 		return frames, nil, true, err
 	case llmprotocol.EventOutputItemStarted:
+		var diagnostics llmprotocol.Diagnostics
+		if event.Content != nil && event.Content.Reasoning == llmprotocol.ReasoningScopeRedacted {
+			// Redacted reasoning has no delta; reject its opaque payload at the start.
+			if err := appendLossy(&diagnostics, encoder.policy, encoder.context.Source, encoder.context.Target, "reasoning.signature", "Responses cannot represent redacted reasoning"); err != nil {
+				return nil, diagnostics, true, err
+			}
+		}
 		frames, err := encoder.encodeResponsesItemStart(event)
-		return frames, nil, true, err
+		return frames, diagnostics, true, err
 	case llmprotocol.EventOutputTextDelta:
 		frames, diagnostics, err := encoder.encodeResponsesTextDelta(event)
 		return frames, diagnostics, true, err

@@ -68,6 +68,11 @@ const (
 const (
 	ReasoningScopeText    ReasoningScope = "text"
 	ReasoningScopeSummary ReasoningScope = "summary"
+	// ReasoningScopeRedacted is provider-encrypted reasoning with no readable
+	// text, such as an Anthropic redacted_thinking block. The opaque payload is
+	// carried in Signature so it is gated like a reasoning signature: only a
+	// format that can replay signed reasoning byte-for-byte accepts it.
+	ReasoningScopeRedacted ReasoningScope = "redacted"
 )
 
 // Content is one ordered semantic block. Fields are closed by Kind. Data and

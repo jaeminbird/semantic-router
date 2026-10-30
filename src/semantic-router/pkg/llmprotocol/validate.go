@@ -683,6 +683,10 @@ func validateTextContent(content Content, limits Limits) error {
 	if content.Kind == ContentReasoning {
 		switch content.Reasoning {
 		case "", ReasoningScopeText, ReasoningScopeSummary:
+		case ReasoningScopeRedacted:
+			if content.Text != "" || content.Signature == "" {
+				return NewError(ErrorInvalidRequest, "invalid_redacted_reasoning", "redacted reasoning carries only an opaque payload", nil)
+			}
 		default:
 			return NewError(ErrorInvalidRequest, "invalid_reasoning_scope", "reasoning content scope is unsupported", nil)
 		}

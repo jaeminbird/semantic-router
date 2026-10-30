@@ -1,0 +1,44 @@
+{
+  "status": "ok",
+  "body": {
+    "max_tokens": 2048,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "Summarize the incident.",
+            "type": "text"
+          }
+        ],
+        "role": "user"
+      },
+      {
+        "content": [
+          {
+            "data": "encrypted-reasoning",
+            "type": "redacted_thinking"
+          },
+          {
+            "text": "Here is the summary.",
+            "type": "text"
+          }
+        ],
+        "role": "assistant"
+      },
+      {
+        "content": [
+          {
+            "text": "Add the timeline.",
+            "type": "text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "model": "routed-model",
+    "thinking": {
+      "budget_tokens": 1024,
+      "type": "enabled"
+    }
+  }
+}
